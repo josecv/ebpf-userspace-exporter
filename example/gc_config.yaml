@@ -1,0 +1,31 @@
+attachment:
+  pid: 5820
+programs:
+  - name: gc_total
+    metrics:
+      counters:
+        - name: gc_total
+          help: Total number of gc events
+          table: gc_counts
+          labels:
+            - name: gen
+              size: 8
+              decoders:
+                - name: uint
+    usdt:
+      gc__start: trace_gc__start
+    code: |
+      struct gc_event_t {
+          u64 gen;
+      };
+
+      BPF_HASH(gc_counts, struct gc_event_t);
+
+      int trace_gc__start(struct pt_regs *ctx) {
+          struct gc_event_t e = {};
+          int gen = 0;
+          bpf_usdt_readarg(1, ctx, &gen);
+          e.gen = gen;
+          gc_counts.increment(e);
+          return 0;
+      }

@@ -27,9 +27,12 @@ import (
 	"github.com/spf13/cobra"
 	"os"
 
-	"github.com/josecv/ebpf-usdt-sidecar/internal"
+	"github.com/josecv/ebpf-usdt-sidecar/pkg/config"
+	"github.com/josecv/ebpf-usdt-sidecar/pkg/server"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/viper"
+	yaml "gopkg.in/yaml.v2"
+	"io/ioutil"
 )
 
 var cfgFile string
@@ -47,11 +50,19 @@ to quickly create a Cobra application.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	RunE: func(cmd *cobra.Command, args []string) error {
-		pid := viper.GetInt("pid")
-		path := viper.GetString("bcc-program")
-		probe := viper.GetString("probe")
-		fnName := viper.GetString("fn-name")
-		return internal.Attach(pid, probe, fnName, path)
+		configPath := viper.GetString("probe-config")
+		listenAddr := viper.GetString("listen-address")
+		metricsPath := viper.GetString("metrics-path")
+		yamlFile, err := ioutil.ReadFile(configPath)
+		if err != nil {
+			return fmt.Errorf("Error reading %s: %s", configPath, err)
+		}
+		config := config.Config{}
+		err = yaml.Unmarshal(yamlFile, &config)
+		if err != nil {
+			return fmt.Errorf("Error unmarshaling %s: %s", configPath, err)
+		}
+		return server.Serve(listenAddr, metricsPath, config)
 	},
 }
 
@@ -61,35 +72,24 @@ func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
+
 	}
 }
 
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
-
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.ebpf-usdt-sidecar.yaml)")
 
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	rootCmd.Flags().IntP("pid", "p", 0, "The pid to bind to")
-	rootCmd.MarkFlagRequired("pid")
-	viper.BindPFlag("pid", rootCmd.Flags().Lookup("pid"))
+	rootCmd.Flags().StringP("probe-config", "c", "", "The config file for probes and attached programs; not to be confused with the exporter's config file itself (--config)")
+	rootCmd.MarkFlagRequired("probe-config")
+	viper.BindPFlag("probe-config", rootCmd.Flags().Lookup("probe-config"))
 
-	rootCmd.Flags().StringP("probe", "r", "", "The probe to bind to")
-	rootCmd.MarkFlagRequired("probe")
-	viper.BindPFlag("probe", rootCmd.Flags().Lookup("probe"))
+	rootCmd.Flags().StringP("listen-address", "l", "0.0.0.0:8080", "Address to listen on for HTTP requests")
+	viper.BindPFlag("listen-address", rootCmd.Flags().Lookup("listen-address"))
 
-	rootCmd.Flags().StringP("fn-name", "f", "", "The fn-name to bind to")
-	rootCmd.MarkFlagRequired("fn-name")
-	viper.BindPFlag("fn-name", rootCmd.Flags().Lookup("fn-name"))
-
-	rootCmd.Flags().StringP("bcc-program", "b", "", "Path to the bcc program to run")
-	rootCmd.MarkFlagRequired("bcc-program")
-	viper.BindPFlag("bcc-program", rootCmd.Flags().Lookup("bcc-program"))
+	rootCmd.Flags().StringP("metrics-path", "m", "/metrics", "Path under which to serve metrics")
+	viper.BindPFlag("metrics-path", rootCmd.Flags().Lookup("metrics-path"))
 }
 
 // initConfig reads in config file and ENV variables if set.
