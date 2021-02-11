@@ -62,7 +62,9 @@ to quickly create a Cobra application.`,
 		if err != nil {
 			return fmt.Errorf("Error unmarshaling %s: %s", configPath, err)
 		}
-		return server.Serve(listenAddr, metricsPath, config)
+		server.Serve(listenAddr, metricsPath, config)
+		// Should not be reached
+		return nil
 	},
 }
 

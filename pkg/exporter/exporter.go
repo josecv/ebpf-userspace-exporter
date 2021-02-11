@@ -8,7 +8,7 @@ import (
 	"github.com/josecv/ebpf-usdt-sidecar/pkg/config"
 	"github.com/josecv/ebpf-usdt-sidecar/pkg/usdt"
 	"github.com/prometheus/client_golang/prometheus"
-	"log"
+	"go.uber.org/zap"
 	"net/http"
 	"strconv"
 )
@@ -27,7 +27,7 @@ type Exporter struct {
 	enabledProgramsDesc *prometheus.Desc
 	descs               map[string]map[string]*prometheus.Desc
 	decoders            *decoder.Set
-	usdtContext         *usdt.Context
+	usdtContexts        map[string]*usdt.Context
 }
 
 // New creates a new exporter with the provided config
@@ -35,7 +35,7 @@ func New(config config.Config) *Exporter {
 	enabledProgramsDesc := prometheus.NewDesc(
 		prometheus.BuildFQName(prometheusNamespace, "", "enabled_programs"),
 		"The set of enabled programs",
-		[]string{"name"},
+		[]string{"name", "pid"},
 		nil,
 	)
 
@@ -46,41 +46,40 @@ func New(config config.Config) *Exporter {
 		enabledProgramsDesc: enabledProgramsDesc,
 		descs:               map[string]map[string]*prometheus.Desc{},
 		decoders:            decoder.NewSet(),
-		usdtContext:         nil,
+		usdtContexts:        map[string]*usdt.Context{},
 	}
 }
 
 // Attach enables usdt probes, then attaches the corresponding uprobes
 func (e *Exporter) Attach() error {
-	usdtContext, err := usdt.NewContext(e.config.Attachment.Pid)
-	if err != nil {
-		return err
-	}
-	e.usdtContext = usdtContext
 	for _, program := range e.config.Programs {
+		usdtContext, err := usdt.NewContext(program.Attachment.Pid, program.Code, program.Cflags)
+		if err != nil {
+			return fmt.Errorf("Can't initialize usdt context for %s: %s", program.Name, err)
+		}
 		for probe, fnName := range program.USDT {
-			fmt.Printf("Loading %s for %s\n", fnName, probe)
+			zap.S().Debugf("Enabling %s for %s...", fnName, probe)
 			err := usdtContext.EnableProbe(probe, fnName)
 			if err != nil {
 				return err
 			}
+			zap.S().Debugf("Function %s enabled for probe %s", fnName, probe)
 		}
-		module, err := usdtContext.CompileModule(program.Code, program.Cflags)
+		module, err := usdtContext.CompileModule()
 		if err != nil {
 			return err
 		}
+		zap.S().Infof("Program %s loaded", program.Name)
 		e.modules[program.Name] = module
+		e.usdtContexts[program.Name] = usdtContext
 	}
 	return nil
 }
 
 // Close releases any resources that the exporter is holding on to.
 func (e *Exporter) Close() {
-	for _, module := range e.modules {
-		module.Close()
-	}
-	if e.usdtContext != nil {
-		e.usdtContext.Close()
+	for _, context := range e.usdtContexts {
+		context.Close()
 	}
 }
 
@@ -121,7 +120,7 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 // Collect satisfies prometheus.Collector interface and sends all metrics
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	for _, program := range e.config.Programs {
-		ch <- prometheus.MustNewConstMetric(e.enabledProgramsDesc, prometheus.GaugeValue, 1, program.Name)
+		ch <- prometheus.MustNewConstMetric(e.enabledProgramsDesc, prometheus.GaugeValue, 1, program.Name, strconv.Itoa(e.usdtContexts[program.Name].Pid))
 	}
 
 	e.collectCounters(ch)
@@ -134,7 +133,7 @@ func (e *Exporter) collectCounters(ch chan<- prometheus.Metric) {
 		for _, counter := range program.Metrics.Counters {
 			tableValues, err := e.tableValues(e.modules[program.Name], counter.Table, counter.Labels)
 			if err != nil {
-				log.Printf("Error getting table %q values for metric %q of program %q: %s", counter.Table, counter.Name, program.Name, err)
+				zap.S().Errorf("Error getting table %q values for metric %q of program %q: %s", counter.Table, counter.Name, program.Name, err)
 				continue
 			}
 
@@ -157,7 +156,7 @@ func (e *Exporter) collectHistograms(ch chan<- prometheus.Metric) {
 
 			tableValues, err := e.tableValues(e.modules[program.Name], histogram.Table, histogram.Labels)
 			if err != nil {
-				log.Printf("Error getting table %q values for metric %q of program %q: %s", histogram.Table, histogram.Name, program.Name, err)
+				zap.S().Errorf("Error getting table %q values for metric %q of program %q: %s", histogram.Table, histogram.Name, program.Name, err)
 				continue
 			}
 
@@ -184,7 +183,7 @@ func (e *Exporter) collectHistograms(ch chan<- prometheus.Metric) {
 
 				leUint, err := strconv.ParseUint(metricValue.labels[len(metricValue.labels)-1], 0, 64)
 				if err != nil {
-					log.Printf("Error parsing float value for bucket %#v in table %q of program %q: %s", metricValue.labels, histogram.Table, program.Name, err)
+					zap.S().Errorf("Error parsing float value for bucket %#v in table %q of program %q: %s", metricValue.labels, histogram.Table, program.Name, err)
 					skip = true
 					break
 				}
@@ -201,7 +200,7 @@ func (e *Exporter) collectHistograms(ch chan<- prometheus.Metric) {
 			for _, histogramSet := range histograms {
 				buckets, count, sum, err := transformHistogram(histogramSet.buckets, histogram)
 				if err != nil {
-					log.Printf("Error transforming histogram for metric %q in program %q: %s", histogram.Name, program.Name, err)
+					zap.S().Errorf("Error transforming histogram for metric %q in program %q: %s", histogram.Name, program.Name, err)
 					continue
 				}
 
@@ -299,7 +298,7 @@ func (e *Exporter) TablesHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Header().Add("Content-type", "text/plain")
 		if _, err = fmt.Fprintf(w, "%s\n", err); err != nil {
-			log.Printf("Error returning error to client %q: %s", r.RemoteAddr, err)
+			zap.S().Errorf("Error returning error to client %q: %s", r.RemoteAddr, err)
 			return
 		}
 		return
@@ -324,7 +323,7 @@ func (e *Exporter) TablesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err = w.Write(buf); err != nil {
-		log.Printf("Error returning table contents to client %q: %s", r.RemoteAddr, err)
+		zap.S().Errorf("Error returning table contents to client %q: %s", r.RemoteAddr, err)
 	}
 }
 

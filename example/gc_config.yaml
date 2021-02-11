@@ -1,5 +1,3 @@
-attachment:
-  pid: 5820
 programs:
   - name: gc_total
     metrics:
@@ -14,6 +12,8 @@ programs:
                 - name: uint
     usdt:
       gc__start: trace_gc__start
+    attachment:
+      pid: 5820
     code: |
       struct gc_event_t {
           u64 gen;
