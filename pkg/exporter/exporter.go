@@ -6,6 +6,7 @@ import (
 	"github.com/cloudflare/ebpf_exporter/decoder"
 	"github.com/iovisor/gobpf/bcc"
 	"github.com/josecv/ebpf-usdt-sidecar/pkg/config"
+	"github.com/josecv/ebpf-usdt-sidecar/pkg/process"
 	"github.com/josecv/ebpf-usdt-sidecar/pkg/usdt"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -53,7 +54,14 @@ func New(config config.Config) *Exporter {
 // Attach enables usdt probes, then attaches the corresponding uprobes
 func (e *Exporter) Attach() error {
 	for _, program := range e.config.Programs {
-		usdtContext, err := usdt.NewContext(program.Attachment.Pid, program.Code, program.Cflags)
+		pid, err := process.FindPid(program.Attachment.BinaryName)
+		if err != nil {
+			return fmt.Errorf("Error searching for process with binary %s for ebpf program %s", program.Attachment.BinaryName, program.Name)
+		}
+		if pid == -1 {
+			return fmt.Errorf("No process for binary %s found (ebpf program %s)", program.Attachment.BinaryName, program.Name)
+		}
+		usdtContext, err := usdt.NewContext(pid, program.Code, program.Cflags)
 		if err != nil {
 			return fmt.Errorf("Can't initialize usdt context for %s: %s", program.Name, err)
 		}

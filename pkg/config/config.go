@@ -9,7 +9,7 @@ type Config struct {
 
 // Attachment describes a program to attach to
 type Attachment struct {
-	Pid int `yaml:"pid"`
+	BinaryName string `yaml:"binary_name"`
 }
 
 // Program describes an eBPF program
