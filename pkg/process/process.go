@@ -5,18 +5,17 @@ import (
 	"github.com/mitchellh/go-ps"
 )
 
-// FindPid finds the PID associated with a given binary name.
-// If multiple processes have the same binary name, one will be returned in an undefined manner.
-// If the process is not found, -1 is returned.
-func FindPid(binaryName string) (int, error) {
+// FindPids finds all PIDs associated with a given binary name.
+func FindPids(binaryName string) ([]int, error) {
 	processes, err := ps.Processes()
 	if err != nil {
-		return -1, fmt.Errorf("Unable to list processes: %s", err)
+		return []int{}, fmt.Errorf("Unable to list processes: %s", err)
 	}
+	results := []int{}
 	for _, process := range processes {
 		if process.Executable() == binaryName {
-			return process.Pid(), nil
+			results = append(results, process.Pid())
 		}
 	}
-	return -1, nil
+	return results, nil
 }

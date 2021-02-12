@@ -64,9 +64,10 @@ func (c *Context) EnableProbe(probe, fnName string) error {
 	parts := strings.Split(probe, ":")
 	var ret int
 	if len(parts) == 1 {
-		ret = int(C.bcc_usdt_enable_fully_specified_probe(c.context, C.CString("python"), C.CString(probe), C.CString(fnName)))
+		ret = int(C.bcc_usdt_enable_probe(c.context, C.CString(probe), C.CString(fnName)))
 	} else {
-		return fmt.Errorf("Not implemented yet lol")
+		providerName, probeName := parts[0], parts[1]
+		ret = int(C.bcc_usdt_enable_fully_specified_probe(c.context, C.CString(providerName), C.CString(probeName), C.CString(fnName)))
 	}
 	if ret != 0 {
 		return fmt.Errorf("Failed to enable function %s for USDT probe %s; is the probe built into the target?", fnName, probe)
