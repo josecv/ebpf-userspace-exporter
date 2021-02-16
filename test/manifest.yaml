@@ -1,0 +1,87 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: null
+  labels:
+    run: test-pod
+  name: test-pod
+spec:
+  shareProcessNamespace: true
+  containers:
+  - name: gunicorn
+    image: gunicorn-app:latest
+    imagePullPolicy: Never
+    resources: {}
+  - name: ebpf-usdt-exporter
+    image: ebpf-usdt-exporter:latest
+    imagePullPolicy: Never
+    args:
+      - -c
+      - /opt/config/exporter.yaml
+    volumeMounts:
+      - name: exporter-config
+        mountPath: /opt/config
+      - name: modules-host
+        mountPath: /lib/modules
+      - name: headers-host
+        mountPath: /usr/src
+    resources: {}
+    securityContext:
+      privileged: true
+  dnsPolicy: ClusterFirst
+  volumes:
+    - name: exporter-config
+      configMap:
+        name: test-exporter-config
+    - name: modules-host
+      hostPath:
+        path: /lib/modules
+    - name: headers-host
+      hostPath:
+        path: /usr/src
+  restartPolicy: Always
+  tolerations:
+  - effect: NoSchedule
+    operator: Exists
+    key: node-role.kubernetes.io/master
+status: {}
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-exporter-config
+data:
+  exporter.yaml: |
+    programs:
+      - name: gc_total
+        metrics:
+          counters:
+            - name: gc_total
+              help: Total number of gc events
+              table: gc_counts
+              labels:
+                - name: gen
+                  size: 8
+                  decoders:
+                    - name: uint
+        usdt:
+          gc__start: trace_gc__start
+        attachment:
+          binary_name: "gunicorn"
+        code: |
+          struct gc_event_t {
+              u64 gen;
+          };
+
+          BPF_HASH(gc_counts, struct gc_event_t);
+
+          int trace_gc__start(struct pt_regs *ctx) {
+              struct gc_event_t e = {};
+              int gen = 0;
+              bpf_usdt_readarg(1, ctx, &gen);
+              e.gen = gen;
+              gc_counts.increment(e);
+              return 0;
+          }

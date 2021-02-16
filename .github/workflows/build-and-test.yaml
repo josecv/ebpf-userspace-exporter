@@ -1,0 +1,30 @@
+name: Build and test
+on: [push]
+jobs:
+  build-and-test:
+    runs-on: ubuntu-18.04
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Build exporter and load locally
+        uses: docker/build-push-action@v2
+        with:
+          load: true
+          tags: ebpf-usdt-exporter:latest
+      - name: Build gunicorn and load locally
+        uses: docker/build-push-action@v2
+        with:
+          context: examples/gunicorn-app
+          tags: gunicorn-app:latest
+          load: true
+      - name: Start kind cluster
+        uses: helm/kind-action@v1.1.0
+        with:
+          cluster_name: integration
+      - name: Load images into kind
+        run: |
+          kind load docker-image ebpf-usdt-exporter:latest --name integration
+          kind load docker-image gunicorn-app:latest --name integration
+      - run: test/run_test.sh
