@@ -9,4 +9,5 @@ RUN python3.9 -m venv .env
 RUN .env/bin/python3.9 -m pip install -r requirements.txt
 ENV FLASK_APP "server.py"
 
-ENTRYPOINT ["/opt/app/.env/bin/python3.9", "-m", "flask", "run"]
+ENTRYPOINT ["/opt/app/.env/bin/gunicorn", "server:app"]
+CMD ["-w", "4", "-b", "0.0.0.0:5000"]
