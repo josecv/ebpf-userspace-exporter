@@ -13,7 +13,7 @@ programs:
     usdt:
       gc__start: trace_gc__start
     attachment:
-      binary_name: "python3"
+      binary_name: "gunicorn"
     code: |
       struct gc_event_t {
           u64 gen;
