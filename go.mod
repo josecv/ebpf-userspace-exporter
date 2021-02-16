@@ -1,4 +1,4 @@
-module github.com/josecv/ebpf-usdt-sidecar
+module github.com/josecv/ebpf-usdt-exporter
 
 go 1.15
 

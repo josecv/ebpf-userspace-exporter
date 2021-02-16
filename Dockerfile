@@ -9,6 +9,6 @@ FROM alpine:3.13
 
 RUN apk add --no-cache bcc=0.18.0-r0
 RUN apk add libc6-compat
-COPY --from=build /opt/build/ebpf-usdt-sidecar /
+COPY --from=build /opt/build/ebpf-usdt-exporter /
 
-ENTRYPOINT ["/ebpf-usdt-sidecar"]
+ENTRYPOINT ["/ebpf-usdt-exporter"]

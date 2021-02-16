@@ -1,8 +1,8 @@
 package server
 
 import (
-	"github.com/josecv/ebpf-usdt-sidecar/pkg/config"
-	"github.com/josecv/ebpf-usdt-sidecar/pkg/exporter"
+	"github.com/josecv/ebpf-usdt-exporter/pkg/config"
+	"github.com/josecv/ebpf-usdt-exporter/pkg/exporter"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
