@@ -12,12 +12,18 @@ spec:
     image: gunicorn-app:latest
     imagePullPolicy: Never
     resources: {}
+    readinessProbe:
+      httpGet:
+        path: /
+        port: 5000
   - name: ebpf-usdt-exporter
     image: ebpf-usdt-exporter:latest
     imagePullPolicy: Never
+    command:
+      - /bin/sh
     args:
       - -c
-      - /opt/config/exporter.yaml
+      - 'sleep 10 && /ebpf-usdt-exporter -c /opt/config/exporter.yaml'
     volumeMounts:
       - name: exporter-config
         mountPath: /opt/config
@@ -28,6 +34,10 @@ spec:
     resources: {}
     securityContext:
       privileged: true
+    readinessProbe:
+      httpGet:
+        path: /metrics
+        port: 8080
   dnsPolicy: ClusterFirst
   volumes:
     - name: exporter-config

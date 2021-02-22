@@ -1,2 +1,3 @@
 ebpf-usdt-exporter
 .*.swp
+__pycache__

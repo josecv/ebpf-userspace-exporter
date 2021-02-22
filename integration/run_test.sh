@@ -2,6 +2,7 @@
 
 set -e
 cd test
+echo $KUBECONFIG
 kubectl apply -f manifest.yaml
 if ! kubectl wait --timeout=60s --for=condition=ready pod test-pod; then
     kubectl describe pod test-pod
