@@ -1,0 +1,4 @@
+pytest
+sh
+requests
+prometheus-client
