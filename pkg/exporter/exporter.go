@@ -74,6 +74,24 @@ func (e *Exporter) Attach() error {
 	return nil
 }
 
+func (e *Exporter) attachProbesToProc(probes map[string]string, proc procfs.Proc, loader func(string) (int, error), attacher func(string, string, int, int) error) error {
+	executablePath, err := proc.Executable()
+	if err != nil {
+		return fmt.Errorf("Unable to get executable path for pid %d: %s", proc.PID, err)
+	}
+	for probe, symbol := range probes {
+		fd, err := loader(probe)
+		if err != nil {
+			return fmt.Errorf("Unable to load uprobe %s: %s", probe, err)
+		}
+		err = attacher(executablePath, symbol, fd, proc.PID)
+		if err != nil {
+			return fmt.Errorf("Unable to attach uprobe %s: %s", probe, err)
+		}
+	}
+	return nil
+}
+
 func (e *Exporter) attachProgramToProc(program config.Program, proc procfs.Proc) error {
 	pid := proc.PID
 	code := program.Code
@@ -104,7 +122,14 @@ func (e *Exporter) attachProgramToProc(program config.Program, proc procfs.Proc)
 			return fmt.Errorf("Unable to attach USDT uprobes for program %s: %s", program.Name, err)
 		}
 	}
-	zap.S().Infof("Program %s loaded", program.Name)
+	if err := e.attachProbesToProc(program.Uprobes, proc, module.LoadUprobe, module.AttachUprobe); err != nil {
+		return fmt.Errorf("Unable to attach uprobes for program %s: %s", program.Name, err)
+	}
+	if err := e.attachProbesToProc(program.Uretprobes, proc, module.LoadUprobe, module.AttachUretprobe); err != nil {
+		return fmt.Errorf("Unable to attach uprobes for program %s: %s", program.Name, err)
+	}
+
+	zap.S().Infof("Program %s attached to pid %d", program.Name, pid)
 	if _, ok := e.modules[program.Name]; !ok {
 		e.modules[program.Name] = make(map[int]*bcc.Module)
 		if usdtContext != nil {
