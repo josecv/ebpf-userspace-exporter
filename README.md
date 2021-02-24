@@ -41,7 +41,7 @@ spec:
   - name: my-application
     # ...
   - name: ebpf-userspace-exporter
-    image: TODO
+    image: docker.pkg.github.com/josecv/ebpf-userspace-exporter/ebpf-userspace-exporter:v0.0.1
     args:
       - -c
       - /opt/config/exporter.yaml
