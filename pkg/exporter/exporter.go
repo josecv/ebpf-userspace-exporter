@@ -52,15 +52,20 @@ func New(config config.Config) *Exporter {
 
 // Attach enables usdt probes, then attaches the corresponding uprobes
 func (e *Exporter) Attach() error {
+	processFinder, err := process.NewFinder()
+	if err != nil {
+		return err
+	}
 	for _, program := range e.config.Programs {
-		pids, err := process.FindPids(program.Attachment.BinaryName)
+		procs, err := processFinder.FindByBinaryName(program.Attachment.BinaryName)
 		if err != nil {
 			return fmt.Errorf("Error searching for process with binary %s for ebpf program %s", program.Attachment.BinaryName, program.Name)
 		}
-		if len(pids) == 0 {
+		if len(procs) == 0 {
 			return fmt.Errorf("No process for binary %s found (ebpf program %s)", program.Attachment.BinaryName, program.Name)
 		}
-		for _, pid := range pids {
+		for _, proc := range procs {
+			pid := proc.PID
 			usdtContext, err := usdt.NewContext(pid, program.Code, program.Cflags)
 			if err != nil {
 				return fmt.Errorf("Can't initialize usdt context for %s: %s", program.Name, err)
