@@ -62,6 +62,6 @@ def test_counter_is_reported(kubectl, apply_gunicorn, port_forward):
                 assert sample.labels['gen'] in {'0', '1', '2'}
                 assert sample.value > 0
             # We expect there to have been garbage collections in all
-            # four workers, but probably not the parent process itself
-            assert len(pids) == 4
+            # four workers, but maybe not the parent process itself
+            assert len(pids) in (4, 5)
     assert found

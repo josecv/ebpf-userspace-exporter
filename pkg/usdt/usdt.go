@@ -25,14 +25,11 @@ type Context struct {
 	Pid     int
 	context unsafe.Pointer
 	closed  bool
-	code    string
-	cflags  []string
-	module  *bcc.Module
 }
 
 // NewContext returns a new usdt context for a given pid.
 // The supplied code and cflags will be used to compile the module in CompileModule
-func NewContext(pid int, code string, cflags []string) (*Context, error) {
+func NewContext(pid int) (*Context, error) {
 	context := C.bcc_usdt_new_frompid(C.int(pid), nil)
 	if context == nil {
 		return nil, fmt.Errorf("Unable to initialize USDT context")
@@ -41,16 +38,13 @@ func NewContext(pid int, code string, cflags []string) (*Context, error) {
 		Pid:     pid,
 		context: context,
 		closed:  false,
-		code:    code,
-		cflags:  cflags,
-		module:  nil,
 	}, nil
 }
 
 // Close closes a Context. After this it cannot be used.
 func (c *Context) Close() {
-	if c.module != nil {
-		c.module.Close()
+	if c.closed {
+		return
 	}
 	C.bcc_usdt_close(c.context)
 	c.closed = true
@@ -75,27 +69,13 @@ func (c *Context) EnableProbe(probe, fnName string) error {
 	return nil
 }
 
-// CompileModule compiles a module from the code, loads and attaches enabled uprobes, and returns the module.
-// The module will be closed on closing the context.
-func (c *Context) CompileModule() (*bcc.Module, error) {
+// AddUSDTArguments augments the originalCode with USDT arguments needed to allow the probes to compile
+func (c *Context) AddUSDTArguments(originalCode string) (string, error) {
 	if c.closed {
-		return nil, fmt.Errorf("Context is closed")
+		return originalCode, fmt.Errorf("Context is closed")
 	}
-	if c.module != nil {
-		return c.module, nil
-	}
-	fullText := C.GoString(C.bcc_usdt_genargs(&c.context, C.int(1))) + c.code
-	module := bcc.NewModule(fullText, c.cflags)
-	if module == nil {
-		return nil, fmt.Errorf("Could not compile module")
-	}
-	c.module = module
-	err := c.attachUprobes()
-	if err != nil {
-		module.Close()
-		return nil, err
-	}
-	return module, nil
+	fullText := C.GoString(C.bcc_usdt_genargs(&c.context, C.int(1))) + originalCode
+	return fullText, nil
 }
 
 type uprobeCbArg struct {
@@ -113,18 +93,20 @@ func uprobeCb(path, fnName *C.char, addr uint64, pid int) {
 	uprobes = append(uprobes, uprobeCbArg{C.GoString(path), C.GoString(fnName), addr, pid})
 }
 
-func (c *Context) attachUprobes() error {
+// AttachUprobes attaches uprobes corresponding to enabled USDT probes
+// The module given must be the module containing the enabled probes
+func (c *Context) AttachUprobes(module *bcc.Module) error {
 	// We lock the mutex because we're about to work with the global uprobes array
 	uprobeMu.Lock()
 	defer func() { uprobes = []uprobeCbArg{} }()
 	defer uprobeMu.Unlock()
 	C.bcc_usdt_foreach_uprobe(c.context, (C.bcc_usdt_uprobe_cb)(unsafe.Pointer(C.uprobe_cb_gateway)))
 	for _, probe := range uprobes {
-		fd, err := c.module.LoadUprobe(probe.fnName)
+		fd, err := module.LoadUprobe(probe.fnName)
 		if err != nil {
 			return fmt.Errorf("Loading uprobe %s failed: %s", probe.fnName, err)
 		}
-		err = c.module.AttachUprobeByAddr(probe.path, probe.addr, fd, probe.pid)
+		err = module.AttachUprobeByAddr(probe.path, probe.addr, fd, probe.pid)
 		if err != nil {
 			return fmt.Errorf("Attaching uprobe %s failed: %s", probe.fnName, err)
 		}
