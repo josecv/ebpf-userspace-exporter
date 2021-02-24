@@ -2,20 +2,40 @@ package process
 
 import (
 	"fmt"
-	"github.com/mitchellh/go-ps"
+	"github.com/prometheus/procfs"
 )
 
-// FindPids finds all PIDs associated with a given binary name.
-func FindPids(binaryName string) ([]int, error) {
-	processes, err := ps.Processes()
+// Finder finds processes that match requested binary attachments
+type Finder struct {
+	procfs procfs.FS
+}
+
+// NewFinder returns a new Finder
+func NewFinder() (Finder, error) {
+	fs, err := procfs.NewDefaultFS()
 	if err != nil {
-		return []int{}, fmt.Errorf("Unable to list processes: %s", err)
+		return Finder{}, fmt.Errorf("Unable to build procfs: %s", err)
 	}
-	results := []int{}
-	for _, process := range processes {
-		if process.Executable() == binaryName {
-			results = append(results, process.Pid())
+	return Finder{
+		procfs: fs,
+	}, nil
+}
+
+// FindByBinaryName finds processes that match a given binary name
+func (f Finder) FindByBinaryName(binaryName string) (procfs.Procs, error) {
+	procs, err := f.procfs.AllProcs()
+	if err != nil {
+		return procfs.Procs{}, fmt.Errorf("Unable to list processes: %s", err)
+	}
+	result := procfs.Procs{}
+	for _, proc := range procs {
+		comm, err := proc.Comm()
+		if err != nil {
+			return procfs.Procs{}, fmt.Errorf("Unable to get comm for process %d: %s", proc.PID, err)
+		}
+		if comm == binaryName {
+			result = append(result, proc)
 		}
 	}
-	return results, nil
+	return result, nil
 }
