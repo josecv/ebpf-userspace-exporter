@@ -16,5 +16,7 @@ type Attachment struct {
 type Program struct {
 	ebpf_config.Program `yaml:",inline"`
 	USDT                map[string]string `yaml:"usdt"`
+	Uprobes             map[string]string `yaml:"uprobes"`
+	Uretprobes          map[string]string `yaml:"uretprobes"`
 	Attachment          Attachment        `yaml:"attachment"`
 }
