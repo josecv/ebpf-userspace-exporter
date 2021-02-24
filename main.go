@@ -21,7 +21,7 @@ THE SOFTWARE.
 */
 package main
 
-import "github.com/josecv/ebpf-usdt-exporter/cmd"
+import "github.com/josecv/ebpf-userspace-exporter/cmd"
 
 func main() {
 	cmd.Execute()

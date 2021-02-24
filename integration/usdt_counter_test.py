@@ -7,10 +7,11 @@ from prometheus_client.parser import text_string_to_metric_families
 
 
 @pytest.fixture()
-def apply_gunicorn(kubectl, apply_manifest, get_manifest_path):
+def apply_gunicorn(kubectl, apply_manifest, get_manifest_path,
+                   wait_for_pod_ready):
     manifest = get_manifest_path('gunicorn.yaml')
     apply_manifest(manifest)
-    kubectl.wait('pod', 'test-pod', '--for=condition=ready', timeout='60s')
+    wait_for_pod_ready('test-pod', timeout='60s')
 
 
 def test_pod_goes_ready(apply_gunicorn):
@@ -23,8 +24,6 @@ def test_pod_goes_ready(apply_gunicorn):
 def test_info_metrics_present(kubectl, apply_gunicorn, port_forward):
     port_forward('test-pod', '8080')
     time.sleep(0.5)
-    print(kubectl.describe('pod', 'test-pod'))
-    print(kubectl.logs('test-pod', '--all-containers=true'))
     r = requests.get('http://localhost:8080/metrics')
     assert r.status_code == 200
     found = False
@@ -48,8 +47,6 @@ def test_counter_is_reported(kubectl, apply_gunicorn, port_forward):
         list(
             executor.map(lambda _: requests.get('http://localhost:5000/'),
                          range(1000)))
-    print(kubectl.describe('pod', 'test-pod'))
-    print(kubectl.logs('test-pod', '--all-containers=true'))
     r = requests.get('http://localhost:8080/metrics')
     assert r.status_code == 200
     found = False

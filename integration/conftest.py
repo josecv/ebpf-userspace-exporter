@@ -51,3 +51,15 @@ def port_forward(kubectl):
             process.wait()
         except sh.SignalException_SIGKILL:
             pass
+
+
+@pytest.fixture(scope='session')
+def wait_for_pod_ready(kubectl):
+    def wait_for_ready(pod_name, **kwargs):
+        try:
+            kubectl.wait('pod', pod_name, '--for=condition=ready', **kwargs)
+        except sh.ErrorReturnCode:
+            print(kubectl.describe('pod', pod_name))
+            print('-' * 20)
+            print(kubectl.logs(pod_name, '--all-containers=true'))
+    return wait_for_ready
