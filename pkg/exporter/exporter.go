@@ -9,6 +9,7 @@ import (
 	"github.com/josecv/ebpf-userspace-exporter/pkg/process"
 	"github.com/josecv/ebpf-userspace-exporter/pkg/usdt"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/procfs"
 	"go.uber.org/zap"
 	"strconv"
 )
@@ -65,31 +66,54 @@ func (e *Exporter) Attach() error {
 			return fmt.Errorf("No process for binary %s found (ebpf program %s)", program.Attachment.BinaryName, program.Name)
 		}
 		for _, proc := range procs {
-			pid := proc.PID
-			usdtContext, err := usdt.NewContext(pid, program.Code, program.Cflags)
-			if err != nil {
-				return fmt.Errorf("Can't initialize usdt context for %s: %s", program.Name, err)
+			if err := e.attachProgramToProc(program, proc); err != nil {
+				return err
 			}
-			for probe, fnName := range program.USDT {
-				zap.S().Debugf("Enabling %s for %s...", fnName, probe)
-				err := usdtContext.EnableProbe(probe, fnName)
-				if err != nil {
-					return err
-				}
-				zap.S().Debugf("Function %s enabled for probe %s", fnName, probe)
-			}
-			module, err := usdtContext.CompileModule()
+		}
+	}
+	return nil
+}
+
+func (e *Exporter) attachProgramToProc(program config.Program, proc procfs.Proc) error {
+	pid := proc.PID
+	code := program.Code
+	var usdtContext *usdt.Context
+	if len(program.USDT) > 0 {
+		var err error
+		usdtContext, err = usdt.NewContext(pid)
+		if err != nil {
+			return fmt.Errorf("Can't initialize usdt context for %s: %s", program.Name, err)
+		}
+		for probe, fnName := range program.USDT {
+			zap.S().Debugf("Enabling %s for %s...", fnName, probe)
+			err := usdtContext.EnableProbe(probe, fnName)
 			if err != nil {
 				return err
 			}
-			zap.S().Infof("Program %s loaded", program.Name)
-			if _, ok := e.modules[program.Name]; !ok {
-				e.modules[program.Name] = make(map[int]*bcc.Module)
-				e.usdtContexts[program.Name] = make(map[int]*usdt.Context)
-			}
-			e.modules[program.Name][pid] = module
-			e.usdtContexts[program.Name][pid] = usdtContext
+			zap.S().Debugf("Function %s enabled for probe %s", fnName, probe)
 		}
+		code, err = usdtContext.AddUSDTArguments(code)
+		if err != nil {
+			return fmt.Errorf("Unable to add usdt arguments for program %s: %s", program.Name, err)
+		}
+	}
+	module := bcc.NewModule(code, program.Cflags)
+	if usdtContext != nil {
+		err := usdtContext.AttachUprobes(module)
+		if err != nil {
+			return fmt.Errorf("Unable to attach USDT uprobes for program %s: %s", program.Name, err)
+		}
+	}
+	zap.S().Infof("Program %s loaded", program.Name)
+	if _, ok := e.modules[program.Name]; !ok {
+		e.modules[program.Name] = make(map[int]*bcc.Module)
+		if usdtContext != nil {
+			e.usdtContexts[program.Name] = make(map[int]*usdt.Context)
+		}
+	}
+	e.modules[program.Name][pid] = module
+	if usdtContext != nil {
+		e.usdtContexts[program.Name][pid] = usdtContext
 	}
 	return nil
 }
@@ -99,6 +123,11 @@ func (e *Exporter) Close() {
 	for _, byPid := range e.usdtContexts {
 		for _, context := range byPid {
 			context.Close()
+		}
+	}
+	for _, byPid := range e.modules {
+		for _, module := range byPid {
+			module.Close()
 		}
 	}
 }
