@@ -27,8 +27,8 @@ import (
 	"github.com/spf13/cobra"
 	"os"
 
-	"github.com/josecv/ebpf-usdt-exporter/pkg/config"
-	"github.com/josecv/ebpf-usdt-exporter/pkg/server"
+	"github.com/josecv/ebpf-userspace-exporter/pkg/config"
+	"github.com/josecv/ebpf-userspace-exporter/pkg/server"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/viper"
 	yaml "gopkg.in/yaml.v2"
@@ -39,7 +39,7 @@ var cfgFile string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "ebpf-usdt-exporter",
+	Use:   "ebpf-userspace-exporter",
 	Short: "Runs USDT ebpf probes as a sidecar to a k8s pod and exports them into prometheus",
 	Long:  `Runs USDT ebpf probes as a sidecar to a k8s pod and exports them into prometheus`,
 	// Uncomment the following line if your bare application
@@ -76,7 +76,7 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.ebpf-usdt-exporter.yaml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.ebpf-userspace-exporter.yaml)")
 
 	rootCmd.Flags().StringP("probe-config", "c", "", "The config file for probes and attached programs; not to be confused with the exporter's config file itself (--config)")
 	rootCmd.MarkFlagRequired("probe-config")
@@ -102,9 +102,9 @@ func initConfig() {
 			os.Exit(1)
 		}
 
-		// Search config in home directory with name ".ebpf-usdt-exporter" (without extension).
+		// Search config in home directory with name ".ebpf-userspace-exporter" (without extension).
 		viper.AddConfigPath(home)
-		viper.SetConfigName(".ebpf-usdt-exporter")
+		viper.SetConfigName(".ebpf-userspace-exporter")
 	}
 
 	viper.AutomaticEnv() // read in environment variables that match

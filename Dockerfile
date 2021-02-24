@@ -9,6 +9,6 @@ FROM alpine:3.13
 
 RUN apk add --no-cache bcc=0.18.0-r0
 RUN apk add libc6-compat
-COPY --from=build /opt/build/ebpf-usdt-exporter /
+COPY --from=build /opt/build/ebpf-userspace-exporter /
 
-ENTRYPOINT ["/ebpf-usdt-exporter"]
+ENTRYPOINT ["/ebpf-userspace-exporter"]

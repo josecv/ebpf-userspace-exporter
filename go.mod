@@ -1,4 +1,4 @@
-module github.com/josecv/ebpf-usdt-exporter
+module github.com/josecv/ebpf-userspace-exporter
 
 go 1.15
 

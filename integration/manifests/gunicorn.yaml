@@ -16,14 +16,14 @@ spec:
       httpGet:
         path: /
         port: 5000
-  - name: ebpf-usdt-exporter
-    image: ebpf-usdt-exporter:latest
+  - name: ebpf-userspace-exporter
+    image: ebpf-userspace-exporter:latest
     imagePullPolicy: Never
     command:
       - /bin/sh
     args:
       - -c
-      - 'sleep 10 && /ebpf-usdt-exporter -c /opt/config/exporter.yaml'
+      - 'sleep 10 && /ebpf-userspace-exporter -c /opt/config/exporter.yaml'
     volumeMounts:
       - name: exporter-config
         mountPath: /opt/config
