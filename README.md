@@ -32,7 +32,6 @@ In kubernetes the following configuration will do this for an example pod:
 apiVersion: v1
 kind: Pod
 metadata:
-  creationTimestamp: null
   name: example-pod
 spec:
   # Needed so the sidecar and application share the same namespace
@@ -55,7 +54,6 @@ spec:
     resources: {}
     securityContext:
       privileged: true
-  dnsPolicy: ClusterFirst
   volumes:
     - name: exporter-config
       configMap:

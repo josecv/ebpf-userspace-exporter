@@ -29,7 +29,7 @@ def test_info_metrics_present(kubectl, apply_gunicorn, port_forward):
     found = False
     print(r.text)
     for family in text_string_to_metric_families(r.text):
-        if family.name == 'usdt_exporter_enabled_programs':
+        if family.name == 'userspace_exporter_enabled_programs':
             found = True
             assert len(family.samples) == 5
             for sample in family.samples:
@@ -52,7 +52,7 @@ def test_counter_is_reported(kubectl, apply_gunicorn, port_forward):
     found = False
     print(r.text)
     for family in text_string_to_metric_families(r.text):
-        if family.name == 'usdt_exporter_gc':
+        if family.name == 'userspace_exporter_gc':
             found = True
             pids = set()
             for sample in family.samples:

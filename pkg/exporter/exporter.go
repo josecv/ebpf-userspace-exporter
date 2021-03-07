@@ -12,13 +12,14 @@ import (
 	"github.com/prometheus/procfs"
 	"go.uber.org/zap"
 	"strconv"
+	"strings"
 )
 
 // This file is taken almost verbatim from cloudflare/ebpf_exporter at https://github.com/cloudflare/ebpf_exporter/blob/master/exporter/exporter.go
 // Copyright CloudFlare and Aaron Westendorf
 // Licensed under MIT license
 
-const prometheusNamespace = "usdt_exporter"
+const prometheusNamespace = "userspace_exporter"
 
 // Exporter is the metrics exporter itself
 type Exporter struct {
@@ -79,12 +80,17 @@ func (e *Exporter) attachProbesToProc(probes map[string]string, proc procfs.Proc
 	if err != nil {
 		return fmt.Errorf("Unable to get executable path for pid %d: %s", proc.PID, err)
 	}
-	for probe, symbol := range probes {
+	for symbol, probe := range probes {
 		fd, err := loader(probe)
 		if err != nil {
 			return fmt.Errorf("Unable to load uprobe %s: %s", probe, err)
 		}
-		err = attacher(executablePath, symbol, fd, proc.PID)
+		parts := strings.Split(symbol, ":")
+		if len(parts) == 1 {
+			err = attacher(executablePath, symbol, fd, proc.PID)
+		} else {
+			err = attacher(parts[0], parts[1], fd, proc.PID)
+		}
 		if err != nil {
 			return fmt.Errorf("Unable to attach uprobe %s: %s", probe, err)
 		}
@@ -195,7 +201,7 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 // Collect satisfies prometheus.Collector interface and sends all metrics
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	for _, program := range e.config.Programs {
-		for pid := range e.usdtContexts[program.Name] {
+		for pid := range e.modules[program.Name] {
 			ch <- prometheus.MustNewConstMetric(e.enabledProgramsDesc, prometheus.GaugeValue, 1, program.Name, strconv.Itoa(pid))
 		}
 	}
