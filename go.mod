@@ -2,7 +2,7 @@ module github.com/josecv/ebpf-userspace-exporter
 
 go 1.15
 
-replace github.com/iovisor/gobpf => github.com/josecv/gobpf v0.0.0-20210210221433-5d0430002500
+replace github.com/iovisor/gobpf => github.com/josecv/gobpf v0.0.0-20210309001951-e65979af5702
 
 require (
 	github.com/cloudflare/ebpf_exporter v1.2.3
