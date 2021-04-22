@@ -50,12 +50,12 @@ var rootCmd = &cobra.Command{
 		metricsPath := viper.GetString("metrics-path")
 		yamlFile, err := ioutil.ReadFile(configPath)
 		if err != nil {
-			return fmt.Errorf("Error reading %s: %s", configPath, err)
+			return fmt.Errorf("Error reading %s: %w", configPath, err)
 		}
 		config := config.Config{}
 		err = yaml.Unmarshal(yamlFile, &config)
 		if err != nil {
-			return fmt.Errorf("Error unmarshaling %s: %s", configPath, err)
+			return fmt.Errorf("Error unmarshaling %s: %w", configPath, err)
 		}
 		server.Serve(listenAddr, metricsPath, config)
 		// Should not be reached

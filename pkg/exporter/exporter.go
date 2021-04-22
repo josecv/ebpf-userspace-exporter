@@ -61,7 +61,7 @@ func (e *Exporter) Attach() error {
 	for _, program := range e.config.Programs {
 		procs, err := processFinder.FindByBinaryName(program.Attachment.BinaryName)
 		if err != nil {
-			return fmt.Errorf("Error searching for process with binary %s for ebpf program %s", program.Attachment.BinaryName, program.Name)
+			return fmt.Errorf("Error searching for process with binary %s for ebpf program %s: %w", program.Attachment.BinaryName, program.Name, err)
 		}
 		if len(procs) == 0 {
 			return fmt.Errorf("No process for binary %s found (ebpf program %s)", program.Attachment.BinaryName, program.Name)
@@ -78,12 +78,12 @@ func (e *Exporter) Attach() error {
 func (e *Exporter) attachProbesToProc(probes map[string]string, proc procfs.Proc, loader func(string) (int, error), attacher func(string, string, int, int) error) error {
 	executablePath, err := proc.Executable()
 	if err != nil {
-		return fmt.Errorf("Unable to get executable path for pid %d: %s", proc.PID, err)
+		return fmt.Errorf("Unable to get executable path for pid %d: %w", proc.PID, err)
 	}
 	for symbol, probe := range probes {
 		fd, err := loader(probe)
 		if err != nil {
-			return fmt.Errorf("Unable to load uprobe %s: %s", probe, err)
+			return fmt.Errorf("Unable to load uprobe %s: %w", probe, err)
 		}
 		parts := strings.Split(symbol, ":")
 		if len(parts) == 1 {
@@ -92,7 +92,7 @@ func (e *Exporter) attachProbesToProc(probes map[string]string, proc procfs.Proc
 			err = attacher(parts[0], parts[1], fd, proc.PID)
 		}
 		if err != nil {
-			return fmt.Errorf("Unable to attach uprobe %s: %s", probe, err)
+			return fmt.Errorf("Unable to attach uprobe %s: %w", probe, err)
 		}
 	}
 	return nil
@@ -106,7 +106,7 @@ func (e *Exporter) attachProgramToProc(program config.Program, proc procfs.Proc)
 		var err error
 		usdtContext, err = usdt.NewContext(pid)
 		if err != nil {
-			return fmt.Errorf("Can't initialize usdt context for %s: %s", program.Name, err)
+			return fmt.Errorf("Can't initialize usdt context for %s: %w", program.Name, err)
 		}
 		for probe, fnName := range program.USDT {
 			zap.S().Debugf("Enabling %s for %s...", fnName, probe)
@@ -118,21 +118,21 @@ func (e *Exporter) attachProgramToProc(program config.Program, proc procfs.Proc)
 		}
 		code, err = usdtContext.AddUSDTArguments(code)
 		if err != nil {
-			return fmt.Errorf("Unable to add usdt arguments for program %s: %s", program.Name, err)
+			return fmt.Errorf("Unable to add usdt arguments for program %s: %w", program.Name, err)
 		}
 	}
 	module := bcc.NewModule(code, program.Cflags)
 	if usdtContext != nil {
 		err := usdtContext.AttachUprobes(module)
 		if err != nil {
-			return fmt.Errorf("Unable to attach USDT uprobes for program %s: %s", program.Name, err)
+			return fmt.Errorf("Unable to attach USDT uprobes for program %s: %w", program.Name, err)
 		}
 	}
 	if err := e.attachProbesToProc(program.Uprobes, proc, module.LoadUprobe, module.AttachUprobe); err != nil {
-		return fmt.Errorf("Unable to attach uprobes for program %s: %s", program.Name, err)
+		return fmt.Errorf("Unable to attach uprobes for program %s: %w", program.Name, err)
 	}
 	if err := e.attachProbesToProc(program.Uretprobes, proc, module.LoadUprobe, module.AttachUretprobe); err != nil {
-		return fmt.Errorf("Unable to attach uprobes for program %s: %s", program.Name, err)
+		return fmt.Errorf("Unable to attach uprobes for program %s: %w", program.Name, err)
 	}
 
 	zap.S().Infof("Program %s attached to pid %d", program.Name, pid)
@@ -217,7 +217,7 @@ func (e *Exporter) collectCounters(ch chan<- prometheus.Metric) {
 			for pid, module := range e.modules[program.Name] {
 				tableValues, err := e.tableValues(module, counter.Table, counter.Labels)
 				if err != nil {
-					zap.S().Errorf("Error getting table %q values for metric %q of program %q: %s", counter.Table, counter.Name, program.Name, err)
+					zap.S().Errorf("Error getting table %q values for metric %q of program %q: %w", counter.Table, counter.Name, program.Name, err)
 					continue
 				}
 
@@ -244,7 +244,7 @@ func (e *Exporter) collectHistograms(ch chan<- prometheus.Metric) {
 
 				tableValues, err := e.tableValues(module, histogram.Table, histogram.Labels)
 				if err != nil {
-					zap.S().Errorf("Error getting table %q values for metric %q of program %q: %s", histogram.Table, histogram.Name, program.Name, err)
+					zap.S().Errorf("Error getting table %q values for metric %q of program %q: %w", histogram.Table, histogram.Name, program.Name, err)
 					continue
 				}
 
@@ -272,7 +272,7 @@ func (e *Exporter) collectHistograms(ch chan<- prometheus.Metric) {
 
 					leUint, err := strconv.ParseUint(metricValue.labels[len(metricValue.labels)-1], 0, 64)
 					if err != nil {
-						zap.S().Errorf("Error parsing float value for bucket %#v in table %q of program %q: %s", metricValue.labels, histogram.Table, program.Name, err)
+						zap.S().Errorf("Error parsing float value for bucket %#v in table %q of program %q: %w", metricValue.labels, histogram.Table, program.Name, err)
 						skip = true
 						break
 					}
@@ -289,7 +289,7 @@ func (e *Exporter) collectHistograms(ch chan<- prometheus.Metric) {
 				for _, histogramSet := range histograms {
 					buckets, count, sum, err := transformHistogram(histogramSet.buckets, histogram)
 					if err != nil {
-						zap.S().Errorf("Error transforming histogram for metric %q in program %q: %s", histogram.Name, program.Name, err)
+						zap.S().Errorf("Error transforming histogram for metric %q in program %q: %w", histogram.Name, program.Name, err)
 						continue
 					}
 
