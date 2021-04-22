@@ -104,11 +104,11 @@ func (c *Context) AttachUprobes(module *bcc.Module) error {
 	for _, probe := range uprobes {
 		fd, err := module.LoadUprobe(probe.fnName)
 		if err != nil {
-			return fmt.Errorf("Loading uprobe %s failed: %s", probe.fnName, err)
+			return fmt.Errorf("Loading uprobe %s failed: %w", probe.fnName, err)
 		}
 		err = module.AttachUprobeByAddr(probe.path, probe.addr, fd, probe.pid)
 		if err != nil {
-			return fmt.Errorf("Attaching uprobe %s failed: %s", probe.fnName, err)
+			return fmt.Errorf("Attaching uprobe %s failed: %w", probe.fnName, err)
 		}
 	}
 	return nil

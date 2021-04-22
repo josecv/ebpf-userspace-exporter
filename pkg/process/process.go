@@ -14,7 +14,7 @@ type Finder struct {
 func NewFinder() (Finder, error) {
 	fs, err := procfs.NewDefaultFS()
 	if err != nil {
-		return Finder{}, fmt.Errorf("Unable to build procfs: %s", err)
+		return Finder{}, fmt.Errorf("Unable to build procfs: %w", err)
 	}
 	return Finder{
 		procfs: fs,
@@ -25,13 +25,13 @@ func NewFinder() (Finder, error) {
 func (f Finder) FindByBinaryName(binaryName string) (procfs.Procs, error) {
 	procs, err := f.procfs.AllProcs()
 	if err != nil {
-		return procfs.Procs{}, fmt.Errorf("Unable to list processes: %s", err)
+		return procfs.Procs{}, fmt.Errorf("Unable to list processes: %w", err)
 	}
 	result := procfs.Procs{}
 	for _, proc := range procs {
 		comm, err := proc.Comm()
 		if err != nil {
-			return procfs.Procs{}, fmt.Errorf("Unable to get comm for process %d: %s", proc.PID, err)
+			return procfs.Procs{}, fmt.Errorf("Unable to get comm for process %d: %w", proc.PID, err)
 		}
 		if comm == binaryName {
 			result = append(result, proc)
