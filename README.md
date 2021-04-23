@@ -4,9 +4,9 @@ A Prometheus exporter for custom userspace (e.g. `usdt`, `uprobe`) eBPF metrics.
 
 ## Why?
 
-eBPF is a Linux kernel feature that allows sandboxed, user-defined, probes to be attached to a running system.
+[eBPF](https://ebpf.io/) is a Linux kernel feature that allows sandboxed, user-defined, probes to be attached to a running system.
 These probes can be attached to the kernel itself (`kprobes`), but may also be attached to specific userspace processes or libraries (`uprobes`).
-This allows for instrumenting a system by, for example, inspecting arguments to system calls, with minimal performance impact.
+This allows for instrumenting a system by, for example, inspecting arguments to system calls (think "how many `read()` calls are made to this file and how big are they?") with minimal performance impact.
 This makes eBPF uniquely well suited to the task of collecting metrics from a system for aggregation in a time-series database such as Prometheus.
 
 The existing [ebpf_exporter](https://github.com/cloudflare/ebpf_exporter) allows for collection of system-wide metrics via eBPF kernel probes, but does not expose any facilities for exporting metrics from userspace probes.
