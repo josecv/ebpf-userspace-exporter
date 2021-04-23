@@ -4,10 +4,10 @@ A Prometheus exporter for custom userspace (e.g. `usdt`, `uprobe`) eBPF metrics.
 
 ## Why?
 
-The existing [ebpf_exporter](https://github.com/cloudflare/ebpf_exporter) allows for collection of system-wide eBPF metrics such as kprobes, but does not expose any facilities for exporting metrics from userspace probes.
+The existing [ebpf_exporter](https://github.com/cloudflare/ebpf_exporter) allows for collection of system-wide metrics via eBPF kernel probes, but does not expose any facilities for exporting metrics from userspace probes.
 These metrics can be quite useful in illuminating aspects of a running process; see the [examples](./examples) for some use cases.
 
-Generally, one cannot attach userspace probes to a process in a different namespace, limiting the feasibility of userspace probes in containerized environments.
+Generally, one cannot attach userspace probes to a process in a different process namespace, limiting the feasibility of userspace probes in containerized environments.
 To work around this, this exporter is designed to run as a [sidecar with namespace sharing](https://kubernetes.io/docs/tasks/configure-pod-container/share-process-namespace/)
 
 ## Prerequisites
@@ -27,7 +27,7 @@ See [configuration](#configuration) for more details on the format for `config.y
 
 If you're running this in a containerized environment, such as kubernetes, you'll have to ensure a few things:
 
-* The exporter runs in the same namespace as the process you wish to monitor.
+* The exporter runs in the same process namespace as the process you wish to monitor.
 * The host must have ebpf enabled, and its /lib/modules and /usr/src should be mounted onto the exporter's container
 * The exporter must run as privileged or with the `CAP_BPF` capability
 
