@@ -1,0 +1,72 @@
+programs:
+  - name: malloc_latency
+    metrics:
+      histograms:
+        - name: malloc_latency_nanoseconds
+          help: Latency of malloc calls
+          table: malloc_latency
+          bucket_type: exp2
+          bucket_min: 0
+          bucket_max: 31
+          labels:
+            - name: bucket
+              size: 8
+              decoders:
+                - name: uint
+    uprobes:
+      je_malloc: trace_entry
+    uretprobes:
+      je_malloc: trace_return
+    attachment:
+      binary_name: "redis-server"
+    code: |
+      #include <uapi/linux/ptrace.h>
+      #define TOTAL_BUCKETS 32
+
+      struct entry_t {
+          u64 start_ns;
+      };
+
+      struct latency_key_t {
+          u64 slot;
+      };
+
+      BPF_HASH(entryinfo, u64, struct entry_t);
+      BPF_HISTOGRAM(malloc_latency, struct latency_key_t, TOTAL_BUCKETS + 1);
+      BPF_PERF_OUTPUT(events);
+
+      int trace_entry(struct pt_regs *ctx) {
+          u64 tgid_pid = bpf_get_current_pid_tgid();
+
+          struct entry_t entry = {};
+          entry.start_ns = bpf_ktime_get_ns();
+
+          entryinfo.update(&tgid_pid, &entry);
+
+          return 0;
+      }
+
+      int trace_return(struct pt_regs *ctx) {
+          struct entry_t *entryp;
+          u64 tgid_pid = bpf_get_current_pid_tgid();
+
+          entryp = entryinfo.lookup(&tgid_pid);
+          if (entryp == 0) {
+              return 0;
+          }
+
+          u64 delta = bpf_ktime_get_ns() - entryp->start_ns;
+          entryinfo.delete(&tgid_pid);
+
+          struct latency_key_t key = {};
+          key.slot = bpf_log2l(delta);
+          if (key.slot >= TOTAL_BUCKETS) {
+              key.slot = TOTAL_BUCKETS - 1;
+          }
+          malloc_latency.increment(key);
+
+          key.slot = TOTAL_BUCKETS;
+          malloc_latency.increment(key, delta);
+
+          return 0;
+      }
